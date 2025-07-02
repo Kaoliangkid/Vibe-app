@@ -2,42 +2,29 @@
 export default {
   name: 'Follow',
   echo: false,
-  sensitivity: 1,
   delay: 0.5,
-  gravity: { x: 0, y: 0, z: 0 },
-  alpha: 0.8,
+  threshold: 1,       // ft/s² below this = no vibration
+  maxMag: 40,         // ft/s² mapped to max duration
+  maxDur: 300,        // ms
 
   start() {
-    this.gravity = { x: 0, y: 0, z: 0 };
     this.listener = e => {
       let mag;
       if (e.acceleration && e.acceleration.x !== null) {
         const acc = e.acceleration;
         mag = Math.sqrt((acc.x||0)**2 + (acc.y||0)**2 + (acc.z||0)**2);
       } else {
-        const aIncl = e.accelerationIncludingGravity;
-        if (!aIncl) return;
-        this.gravity.x = this.alpha * this.gravity.x + (1 - this.alpha) * aIncl.x;
-        this.gravity.y = this.alpha * this.gravity.y + (1 - this.alpha) * aIncl.y;
-        this.gravity.z = this.alpha * this.gravity.z + (1 - this.alpha) * aIncl.z;
-        const dx = aIncl.x - this.gravity.x;
-        const dy = aIncl.y - this.gravity.y;
-        const dz = aIncl.z - this.gravity.z;
-        mag = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        return; // skip fallback to keep it simple
       }
 
-      const dur = Math.min(Math.round(mag * 50 * this.sensitivity), 300);
-      if (dur <= 0) return;
+      if (mag < this.threshold) return;
+      const norm = Math.min((mag - this.threshold) / (this.maxMag - this.threshold), 1);
+      const dur  = Math.round(norm * this.maxDur);
+
       navigator.vibrate(dur);
 
       if (this.echo) {
-        let repDur = dur;
-        for (let i = 1; i <= 3; i++) {
-          repDur = Math.round(repDur * 0.6);
-          setTimeout(() => {
-            if (repDur > 10) navigator.vibrate(repDur);
-          }, this.delay * 1000 * i);
-        }
+        setTimeout(() => navigator.vibrate(dur), this.delay * 1000);
       }
     };
 
