@@ -1,117 +1,105 @@
-// script.js
 import follow from './modes/follow.js';
-
 const modes = [ follow ];
 let activeMode = null;
-let readoutListener = null;
-
-// Globals for readout high-pass filter
-let gravity = { x: 0, y: 0, z: 0 };
-const alpha = 0.8;
 
 window.addEventListener('DOMContentLoaded', () => {
   const modesDiv = document.getElementById('modes');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn  = document.getElementById('stopBtn');
+
   modes.forEach((m, i) => {
-    const label = document.createElement('label');
+    const lbl   = document.createElement('label');
     const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = 'mode';
+    radio.type  = 'radio';
+    radio.name  = 'mode';
     radio.value = m.name;
     if (i === 0) radio.checked = true;
-    radio.onchange = () => onModeChange(m);
-
-    label.append(radio, ' ', m.name);
-    modesDiv.append(label, document.createElement('br'));
+    radio.addEventListener('change', () => buildSettings(m));
+    lbl.append(radio, ' ', m.name);
+    modesDiv.append(lbl, document.createElement('br'));
+    if (i === 0) buildSettings(m);
   });
 
-  // initialize first mode
-  onModeChange(modes[0]);
-
-  document.getElementById('startBtn').addEventListener('click', start);
-  document.getElementById('stopBtn').addEventListener('click', stop);
+  startBtn.addEventListener('click', start);
+  stopBtn .addEventListener('click', stop);
 });
 
-function onModeChange(mode) {
-  // stop any running mode
-  if (activeMode && activeMode.listener) activeMode.stop();
-
-  activeMode = mode;
+function buildSettings(mode) {
   const settingsDiv = document.getElementById('settings');
   settingsDiv.innerHTML = '';
-
   mode.settings.forEach(s => {
-    const row = document.createElement('div');
-    const lbl = document.createElement('label');
-    lbl.textContent = s.label + ': ';
-    let input, valDisplay;
+    const row   = document.createElement('div');
+    const label = document.createElement('label');
+    label.textContent = s.label + (s.type==='range' ? `: ${s.default}` : '');
+    row.append(label);
 
+    let input;
     if (s.type === 'range') {
       input = document.createElement('input');
-      input.type  = 'range';
-      input.min   = s.min;
-      input.max   = s.max;
-      input.step  = s.step;
-      input.value = s.default;
-      valDisplay   = document.createElement('span');
-      valDisplay.textContent = s.default;
+      Object.assign(input, {
+        type: 'range',
+        min:  s.min,
+        max:  s.max,
+        step: s.step,
+        value:s.default
+      });
+      const valSpan = document.createElement('span');
+      valSpan.textContent = s.default;
+      input.addEventListener('input', () => {
+        valSpan.textContent   = input.value;
+        label.textContent     = `${s.label}: ${input.value}`;
+      });
+      row.append(input, valSpan);
+
     } else if (s.type === 'checkbox') {
       input = document.createElement('input');
-      input.type    = 'checkbox';
-      input.checked = s.default;
-      valDisplay     = document.createElement('span');
-      valDisplay.textContent = '';
+      Object.assign(input, {
+        type:    'checkbox',
+        checked: s.default
+      });
+      row.insertBefore(input, label);
     }
 
-    input.oninput = e => {
-      const v = s.type === 'checkbox'
-        ? e.target.checked
-        : parseFloat(e.target.value);
-      mode[s.key] = v;
-      if (s.type === 'range') valDisplay.textContent = e.target.value;
-    };
-
-    // set initial value on mode
+    input.addEventListener('change', () => {
+      mode[s.key] = (s.type === 'checkbox') ? input.checked : parseFloat(input.value);
+    });
     mode[s.key] = s.default;
-
-    row.append(lbl, input, ' ', valDisplay);
     settingsDiv.append(row);
   });
 }
 
 function start() {
-  if (!activeMode) return;
+  const chosen = document.querySelector('input[name="mode"]:checked').value;
+  activeMode = modes.find(m => m.name === chosen);
   activeMode.start();
 
-  // live readout
-  readoutListener = e => {
-    const aIncl = e.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
-    gravity.x = alpha * gravity.x + (1 - alpha) * aIncl.x;
-    gravity.y = alpha * gravity.y + (1 - alpha) * aIncl.y;
-    gravity.z = alpha * gravity.z + (1 - alpha) * aIncl.z;
-
-    const dx = aIncl.x - gravity.x;
-    const dy = aIncl.y - gravity.y;
-    const dz = aIncl.z - gravity.z;
-    const mag = Math.sqrt(dx*dx + dy*dy + dz*dz);
-    const magFt = (mag * 3.28084).toFixed(2);
-
-    const r = e.rotationRate || {};
-    document.getElementById('readoutText').textContent =
-      `Accel: ${magFt} ft/s²\n` +
-      `Rotation α:${(r.alpha||0).toFixed(2)} β:${(r.beta||0).toFixed(2)} γ:${(r.gamma||0).toFixed(2)}`;
+  // Motion readout
+  activeMode.readout = document.getElementById('readout');
+  activeMode.readoutListener = e => {
+    const a    = e.acceleration || { x:0,y:0,z:0 };
+    const magFt= Math.hypot(a.x,a.y,a.z)*3.28084;
+    activeMode.readout.textContent = `Motion: ${magFt.toFixed(2)} ft/s²`;
   };
-  window.addEventListener('devicemotion', readoutListener);
+  window.addEventListener('devicemotion', activeMode.readoutListener);
+
+  // Vibe Info panel
+  let infoEl = document.getElementById('vibeInfo');
+  if (!infoEl) {
+    infoEl = document.createElement('pre');
+    infoEl.id = 'vibeInfo';
+    infoEl.textContent = 'Vibe Info:';
+    document.body.append(infoEl);
+  }
+  activeMode.vibeInfoEl = infoEl;
 
   document.getElementById('startBtn').disabled = true;
-  document.getElementById('stopBtn').disabled  = false;
+  document.getElementById('stopBtn') .disabled = false;
 }
 
 function stop() {
   if (!activeMode) return;
   activeMode.stop();
-  navigator.vibrate(0);
-  window.removeEventListener('devicemotion', readoutListener);
-  document.getElementById('readoutText').textContent = '';
+  window.removeEventListener('devicemotion', activeMode.readoutListener);
   document.getElementById('startBtn').disabled = false;
-  document.getElementById('stopBtn').disabled  = true;
+  document.getElementById('stopBtn') .disabled = true;
 }
