@@ -49,26 +49,32 @@ function start() {
   activeMode.start();
 
   // live dynamic readout
-  gravity = { x: 0, y: 0, z: 0 };
   readoutListener = e => {
-    const aIncl = e.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
-    gravity.x = alpha * gravity.x + (1 - alpha) * aIncl.x;
-    gravity.y = alpha * gravity.y + (1 - alpha) * aIncl.y;
-    gravity.z = alpha * gravity.z + (1 - alpha) * aIncl.z;
-
-    const dx = aIncl.x - gravity.x;
-    const dy = aIncl.y - gravity.y;
-    const dz = aIncl.z - gravity.z;
+    let dx, dy, dz;
+    if (e.acceleration && e.acceleration.x !== null) {
+      // use gravity-free acceleration directly
+      dx = e.acceleration.x;
+      dy = e.acceleration.y;
+      dz = e.acceleration.z;
+    } else {
+      // fallback to high-pass filter
+      const aIncl = e.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
+      gravity.x = alpha * gravity.x + (1 - alpha) * aIncl.x;
+      gravity.y = alpha * gravity.y + (1 - alpha) * aIncl.y;
+      gravity.z = alpha * gravity.z + (1 - alpha) * aIncl.z;
+      dx = aIncl.x - gravity.x;
+      dy = aIncl.y - gravity.y;
+      dz = aIncl.z - gravity.z;
+    }
     const mag = Math.sqrt(dx*dx + dy*dy + dz*dz);
     const magFt = (mag * 3.28084).toFixed(2);
 
     const r = e.rotationRate || {};
-    const text = 
+    document.getElementById('readoutText').textContent =
       `Accel: ${magFt} ft/s²\n` +
       `Rotation α:${(r.alpha||0).toFixed(2)} ` +
       `β:${(r.beta||0).toFixed(2)} ` +
       `γ:${(r.gamma||0).toFixed(2)}`;
-    document.getElementById('readoutText').textContent = text;
   };
   window.addEventListener('devicemotion', readoutListener);
 
@@ -85,5 +91,5 @@ function stop() {
   document.getElementById('readoutText').textContent = '';
 
   document.getElementById('startBtn').disabled = false;
-  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('stopBtn').disabled  = true;
 }
