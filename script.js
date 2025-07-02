@@ -1,19 +1,22 @@
 // script.js
 import follow from './modes/follow.js';
-// import other modes here:
-// import momentum from './modes/momentum.js';
 
-const modes = [ follow /*, momentum, ... */ ];
+const modes = [ follow ];
 let activeMode = null;
 let readoutListener = null;
 
+// Globals for readout high-pass filter
+let gravity = { x: 0, y: 0, z: 0 };
+const alpha = 0.8;
+
 window.addEventListener('DOMContentLoaded', () => {
   const modesDiv = document.getElementById('modes');
-
   modes.forEach((m, i) => {
     const label = document.createElement('label');
     const radio = document.createElement('input');
-    radio.type = 'radio'; radio.name = 'mode'; radio.value = m.name;
+    radio.type = 'radio';
+    radio.name = 'mode';
+    radio.value = m.name;
     if (i === 0) radio.checked = true;
     radio.onchange = () => onModeChange(m);
 
@@ -21,15 +24,15 @@ window.addEventListener('DOMContentLoaded', () => {
     modesDiv.append(label, document.createElement('br'));
   });
 
-  // initialize first
+  // initialize first mode
   onModeChange(modes[0]);
 
-  document.getElementById('startBtn').onclick = start;
-  document.getElementById('stopBtn').onclick  = stop;
+  document.getElementById('startBtn').addEventListener('click', start);
+  document.getElementById('stopBtn').addEventListener('click', stop);
 });
 
 function onModeChange(mode) {
-  // stop previous if running
+  // stop any running mode
   if (activeMode && activeMode.listener) activeMode.stop();
 
   activeMode = mode;
@@ -39,32 +42,38 @@ function onModeChange(mode) {
   mode.settings.forEach(s => {
     const row = document.createElement('div');
     const lbl = document.createElement('label');
-    lbl.textContent = s.label + ' ';
+    lbl.textContent = s.label + ': ';
+    let input, valDisplay;
 
-    let input;
     if (s.type === 'range') {
       input = document.createElement('input');
-      input.type = 'range';
-      input.min = s.min; input.max = s.max; input.step = s.step;
+      input.type  = 'range';
+      input.min   = s.min;
+      input.max   = s.max;
+      input.step  = s.step;
       input.value = s.default;
+      valDisplay   = document.createElement('span');
+      valDisplay.textContent = s.default;
     } else if (s.type === 'checkbox') {
       input = document.createElement('input');
-      input.type = 'checkbox';
+      input.type    = 'checkbox';
       input.checked = s.default;
+      valDisplay     = document.createElement('span');
+      valDisplay.textContent = '';
     }
 
-    const valDisplay = document.createElement('span');
-    if (s.type === 'range') valDisplay.textContent = s.default;
     input.oninput = e => {
-      const v = s.type === 'checkbox' ? e.target.checked : parseFloat(e.target.value);
+      const v = s.type === 'checkbox'
+        ? e.target.checked
+        : parseFloat(e.target.value);
       mode[s.key] = v;
       if (s.type === 'range') valDisplay.textContent = e.target.value;
     };
 
-    // set initial
+    // set initial value on mode
     mode[s.key] = s.default;
 
-    row.append(lbl, input, valDisplay);
+    row.append(lbl, input, ' ', valDisplay);
     settingsDiv.append(row);
   });
 }
@@ -73,20 +82,23 @@ function start() {
   if (!activeMode) return;
   activeMode.start();
 
-  // attach readout
+  // live readout
   readoutListener = e => {
-    const acc = e.acceleration;
-    const mag = acc && acc.x !== null
-      ? Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2)
-      : 0;
-    const magFt = (mag * 3.28084).toFixed(2);
-    const rot = e.rotationRate || {};
+    const aIncl = e.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
+    gravity.x = alpha * gravity.x + (1 - alpha) * aIncl.x;
+    gravity.y = alpha * gravity.y + (1 - alpha) * aIncl.y;
+    gravity.z = alpha * gravity.z + (1 - alpha) * aIncl.z;
 
+    const dx = aIncl.x - gravity.x;
+    const dy = aIncl.y - gravity.y;
+    const dz = aIncl.z - gravity.z;
+    const mag = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    const magFt = (mag * 3.28084).toFixed(2);
+
+    const r = e.rotationRate || {};
     document.getElementById('readoutText').textContent =
-      `Accel: ${magFt} ft/s² \n` +
-      `Rotation α:${(rot.alpha||0).toFixed(2)} ` +
-      `β:${(rot.beta||0).toFixed(2)} ` +
-      `γ:${(rot.gamma||0).toFixed(2)}`;
+      `Accel: ${magFt} ft/s²\n` +
+      `Rotation α:${(r.alpha||0).toFixed(2)} β:${(r.beta||0).toFixed(2)} γ:${(r.gamma||0).toFixed(2)}`;
   };
   window.addEventListener('devicemotion', readoutListener);
 
@@ -98,10 +110,8 @@ function stop() {
   if (!activeMode) return;
   activeMode.stop();
   navigator.vibrate(0);
-
   window.removeEventListener('devicemotion', readoutListener);
   document.getElementById('readoutText').textContent = '';
-
   document.getElementById('startBtn').disabled = false;
   document.getElementById('stopBtn').disabled  = true;
 }
