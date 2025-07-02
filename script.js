@@ -1,12 +1,9 @@
 // script.js
 import follow from './modes/follow.js';
-// import other modes as needed
 
 const modes = [ follow /*, momentum, game, music, relax */ ];
 let activeMode = null;
 let readoutListener = null;
-let gravity = { x: 0, y: 0, z: 0 };
-const alpha = 0.8;
 
 window.addEventListener('DOMContentLoaded', () => {
   const modesDiv = document.getElementById('modes');
@@ -21,44 +18,36 @@ window.addEventListener('DOMContentLoaded', () => {
     modesDiv.append(label, document.createElement('br'));
   });
 
-  const sensSlide = document.getElementById('sensitivitySlider');
-  const delaySlide = document.getElementById('delaySlider');
+  document.getElementById('startBtn').onclick = start;
+  document.getElementById('stopBtn').onclick  = stop;
 
-  sensSlide.oninput = e => {
-    document.getElementById('sensLabel').textContent = e.target.value;
-    if (activeMode) activeMode.sensitivity = parseFloat(e.target.value);
-  };
-  delaySlide.oninput = e => {
+  // update echo delay label live
+  document.getElementById('delaySlider').oninput = e => {
     document.getElementById('delayLabel').textContent = e.target.value;
     if (activeMode) activeMode.delay = parseFloat(e.target.value);
   };
-
-  document.getElementById('startBtn').onclick = start;
-  document.getElementById('stopBtn').onclick  = stop;
 });
 
 function start() {
   const chosen = document.querySelector('input[name="mode"]:checked').value;
   activeMode = modes.find(m => m.name === chosen);
 
-  // apply settings
-  activeMode.echo        = document.getElementById('echoToggle').checked;
-  activeMode.sensitivity = parseFloat(document.getElementById('sensitivitySlider').value);
-  activeMode.delay       = parseFloat(document.getElementById('delaySlider').value);
+  activeMode.echo  = document.getElementById('echoToggle').checked;
+  activeMode.delay = parseFloat(document.getElementById('delaySlider').value);
 
   activeMode.start();
 
-  // live dynamic readout
+  // live accel/gyro readout
   readoutListener = e => {
     let dx, dy, dz;
     if (e.acceleration && e.acceleration.x !== null) {
-      // use gravity-free acceleration directly
       dx = e.acceleration.x;
       dy = e.acceleration.y;
       dz = e.acceleration.z;
     } else {
-      // fallback to high-pass filter
+      // fallback: high-pass to remove gravity
       const aIncl = e.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
+      // simple single-pole HPF (persistent gravity filter)
       gravity.x = alpha * gravity.x + (1 - alpha) * aIncl.x;
       gravity.y = alpha * gravity.y + (1 - alpha) * aIncl.y;
       gravity.z = alpha * gravity.z + (1 - alpha) * aIncl.z;
@@ -93,3 +82,7 @@ function stop() {
   document.getElementById('startBtn').disabled = false;
   document.getElementById('stopBtn').disabled  = true;
 }
+
+// persistent globals for fallback filter
+let gravity = { x: 0, y: 0, z: 0 };
+const alpha = 0.8;
