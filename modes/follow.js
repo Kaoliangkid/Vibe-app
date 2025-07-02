@@ -8,7 +8,7 @@ export default {
   settings: [
     { key: 'threshold', label: 'Threshold (ft/s²)', type: 'range',    min: 0,   max: 10,   step: 0.1, default: 1   },
     { key: 'maxMag',    label: 'Max Motion (ft/s²)', type: 'range',    min: 10,  max: 60,   step: 1,   default: 40  },
-    { key: 'maxDur',    label: 'Max Duration (ms)',  type: 'range',    min: 100, max: 500, step: 10,  default: 300 },
+    { key: 'maxDur',    label: 'Max Duration (ms)',  type: 'range',    min: 100, max: 1000, step: 10,  default: 300 },
     { key: 'echo',      label: 'Echo',               type: 'checkbox',            default: false },
     { key: 'delay',     label: 'Echo Delay (s)',     type: 'range',    min: 0.1, max: 2,    step: 0.1, default: 0.5 }
   ],
