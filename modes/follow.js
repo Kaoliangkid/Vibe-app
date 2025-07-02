@@ -4,35 +4,36 @@ export default {
   echo: false,
   sensitivity: 1,
   delay: 0.5,
+  gravity: { x: 0, y: 0, z: 0 },
+  alpha: 0.8,
 
   start() {
+    this.gravity = { x: 0, y: 0, z: 0 };
     this.listener = e => {
-      const a = e.accelerationIncludingGravity;
-      if (!a) return;
+      const aIncl = e.accelerationIncludingGravity;
+      if (!aIncl) return;
 
-      const mag = Math.sqrt(
-        (a.x||0)**2 +
-        (a.y||0)**2 +
-        (a.z||0)**2
-      );
+      this.gravity.x = this.alpha * this.gravity.x + (1 - this.alpha) * aIncl.x;
+      this.gravity.y = this.alpha * this.gravity.y + (1 - this.alpha) * aIncl.y;
+      this.gravity.z = this.alpha * this.gravity.z + (1 - this.alpha) * aIncl.z;
 
-      // map magnitude → vibration duration
-      let dur = Math.min(Math.max(
-        Math.round(mag * 50 * this.sensitivity),
-        0), 300
-      );
+      const dx = aIncl.x - this.gravity.x;
+      const dy = aIncl.y - this.gravity.y;
+      const dz = aIncl.z - this.gravity.z;
+      const mag = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+      const dur = Math.min(Math.round(mag * 50 * this.sensitivity), 300);
       if (dur <= 0) return;
 
       navigator.vibrate(dur);
 
       if (this.echo) {
-        // diminishing echoes (3 repeats)
         let repDur = dur;
         for (let i = 1; i <= 3; i++) {
           repDur = Math.round(repDur * 0.6);
           setTimeout(() => {
             if (repDur > 10) navigator.vibrate(repDur);
-          }, (this.delay * 1000) * i);
+          }, this.delay * 1000 * i);
         }
       }
     };
