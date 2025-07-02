@@ -3,20 +3,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vibe App</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Vibe App – Mode Tester</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    #settings div { margin: 0.5em 0; }
+  </style>
 </head>
 <body>
   <h1>Vibe App – Mode Tester</h1>
 
-  <div id="modeSelector">
-    <strong>Mode:</strong>
-    <div id="modes"></div>
-  </div>
-
-  <div id="settings">
-    <!-- settings UI populated dynamically -->
-  </div>
+  <div id="modes"></div>
+  <div id="settings"></div>
 
   <div>
     <button id="startBtn">Start</button>
