@@ -1,30 +1,100 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Vibe App – Mode Tester</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Vibe App – Motion Triggered Buzz</title>
   <style>
-    body { font-family: sans-serif; padding: 1em; }
-    #settings div { margin: 0.5em 0; }
+    body { font-family: sans-serif; padding:1em; }
+    label, button { display:block; margin:0.5em 0; }
+    input[type=range] { width:100%; }
+    pre { background:#f0f0f0; padding:0.5em; }
   </style>
 </head>
 <body>
-  <h1>Vibe App – Mode Tester</h1>
+<h1>Vibe App – Motion Triggered Buzz</h1>
 
-  <div id="modes"></div>
-  <div id="settings"></div>
+<!-- Quick test -->
+<button id="testBtn">Test Vibe</button>
 
-  <div>
-    <button id="startBtn">Start</button>
-    <button id="stopBtn" disabled>Stop</button>
-  </div>
+<!-- Follow controls -->
+<button id="startBtn">Start Follow</button>
+<button id="stopBtn" disabled>Stop</button>
 
-  <div id="readout">
-    <pre id="readoutText"></pre>
-  </div>
+<label>Threshold (ft/s²): <span id="thrVal">0.5</span>
+  <input id="threshold" type="range" min="0" max="5" step="0.1" value="0.5">
+</label>
 
-  <script type="module" src="script.js"></script>
+<label>Buzz Duration (ms): <span id="durVal">200</span>
+  <input id="buzzDur" type="range" min="50" max="1000" step="50" value="200">
+</label>
+
+<pre id="readout">Motion: 0.00 ft/s²</pre>
+
+<script>
+  let hpf = { x:0, y:0, z:0 };
+  const alpha = 0.85;
+  let listening = false;
+
+  const testBtn  = document.getElementById('testBtn');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn  = document.getElementById('stopBtn');
+  const thr      = document.getElementById('threshold');
+  const dur      = document.getElementById('buzzDur');
+  const thrVal   = document.getElementById('thrVal');
+  const durVal   = document.getElementById('durVal');
+  const readout  = document.getElementById('readout');
+
+  testBtn.onclick = () => navigator.vibrate([100,50,100]);
+
+  thr.oninput = () => thrVal.textContent = thr.value;
+  dur.oninput = () => durVal.textContent = dur.value;
+
+  function handler(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+    // HPF remove gravity
+    hpf.x = alpha*hpf.x + (1-alpha)*a.x;
+    hpf.y = alpha*hpf.y + (1-alpha)*a.y;
+    hpf.z = alpha*hpf.z + (1-alpha)*a.z;
+    const dx = a.x - hpf.x,
+          dy = a.y - hpf.y,
+          dz = a.z - hpf.z;
+    const mag = Math.hypot(dx,dy,dz)*3.28084;
+    readout.textContent = `Motion: ${mag.toFixed(2)} ft/s²`;
+
+    if (mag >= parseFloat(thr.value)) {
+      const length = parseInt(dur.value,10);
+      if (window.NativeVibe?.vibrate) {
+        // one-shot native buzz
+        NativeVibe.vibrate(JSON.stringify([length]), -1);
+      } else {
+        navigator.vibrate(length);
+      }
+    }
+  }
+
+  function start() {
+    if (listening) return;
+    hpf = { x:0, y:0, z:0 };
+    window.addEventListener('devicemotion', handler);
+    listening = true;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+  }
+
+  function stop() {
+    if (!listening) return;
+    window.removeEventListener('devicemotion', handler);
+    listening = false;
+    navigator.vibrate(0);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    readout.textContent = 'Motion: 0.00 ft/s²';
+  }
+
+  startBtn.onclick = start;
+  stopBtn.onclick  = stop;
+</script>
 </body>
 </html>
