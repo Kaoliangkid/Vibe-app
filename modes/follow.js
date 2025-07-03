@@ -12,55 +12,58 @@ export default {
 
   start() {
     this.gravity = { x:0, y:0, z:0 };
+
     this.listener = e => {
       const aIncl = e.accelerationIncludingGravity;
       if (!aIncl) return;
 
-      // high-pass filter
       this.gravity.x = alpha*this.gravity.x + (1-alpha)*aIncl.x;
       this.gravity.y = alpha*this.gravity.y + (1-alpha)*aIncl.y;
       this.gravity.z = alpha*this.gravity.z + (1-alpha)*aIncl.z;
 
-      const dx    = aIncl.x - this.gravity.x;
-      const dy    = aIncl.y - this.gravity.y;
-      const dz    = aIncl.z - this.gravity.z;
-      const magFt = Math.hypot(dx,dy,dz)*3.28084;
+      const dx = aIncl.x - this.gravity.x;
+      const dy = aIncl.y - this.gravity.y;
+      const dz = aIncl.z - this.gravity.z;
+      const magFt = Math.hypot(dx, dy, dz) * 3.28084;
 
       if (magFt < this.threshold) return;
-      const norm = Math.min((magFt-this.threshold)/(this.maxMag-this.threshold),1);
-      const dur  = Math.round(norm*this.maxDur);
+
+      const norm = Math.min((magFt - this.threshold) / (this.maxMag - this.threshold), 1);
+      const totalDur = Math.round(norm * this.maxDur);
+
+      // build a pattern of fast pulses: e.g. [10,10,10,10,...] for 'buzz' feel
+      const pulse = 10;
+      const count = Math.max(1, Math.floor(totalDur / (pulse * 2)));
+      const pattern = Array(count * 2).fill(pulse);
 
       const isNative = !!(window.NativeVibe && window.NativeVibe.vibrate);
-
-      // buzz function
-      const buzz = d => {
+      const buzz = () => {
         if (isNative) {
-          window.NativeVibe.vibrate(d,255);
+          // native version will use the pattern but amplitude always max
+          window.NativeVibe.vibrate(pattern, -1);
         } else {
-          navigator.vibrate([d,30,d,30,d]);
+          navigator.vibrate(pattern);
         }
       };
 
-      buzz(dur);
+      buzz();
 
-      // update Vibe Info
-      const infoEl = document.getElementById('vibeInfo');
-      if (infoEl) {
-        infoEl.textContent =
-          `Vibe Info:\n` +
-          `Time: ${new Date().toLocaleTimeString()}\n` +
-          `Duration: ${dur} ms\n` +
-          `Mode: ${isNative?'Native':'Burst'}\n` +
-          `Amplitude: ${isNative?255:'n/a'}`;
+      if (this.echo) {
+        setTimeout(() => buzz(), this.delay * 1000);
       }
 
-      // echo
-      if (this.echo) {
-        setTimeout(()=>{
-          buzz(dur);
-          const infoEl2 = document.getElementById('vibeInfo');
-          if (infoEl2) infoEl2.textContent += `\nEcho at +${this.delay}s`;
-        }, this.delay*1000);
+      // optional log
+      const info = document.getElementById('vibeInfo');
+      if (info) {
+        info.textContent =
+          `Vibe Info:\n` +
+          `Time: ${new Date().toLocaleTimeString()}\n` +
+          `Motion: ${magFt.toFixed(2)} ft/s²\n` +
+          `Norm: ${norm.toFixed(2)}\n` +
+          `Duration: ${totalDur} ms\n` +
+          `Buzz pattern: ${count}× ${pulse}ms pulses\n` +
+          `Mode: ${isNative ? 'Native Pattern' : 'Fallback Pattern'}\n` +
+          (this.echo ? `Echo in ${this.delay}s\n` : '');
       }
     };
 
